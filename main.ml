@@ -1,6 +1,6 @@
 (* Genetic Algorithm implementation in OCAML *)
 
-let pop_size = 10
+let pop_size = 100
 let chrm_length = 10
 let generations = 100
 let mutation_rate = 0.25
@@ -19,8 +19,14 @@ let create_rand_array rand_element length =
     (Array.make length (rand_element ()))
 
 
+let rec create_rand_list rand_element length =
+  match length with
+    0 -> []
+  | _ -> rand_element () :: create_rand_list rand_element (length - 1)
+
+
 (* Is there a sum function? *)
-let sum_int_array a = Array.fold_left (+) 0 a
+let sum_int_list ls = List.fold_left (+) 0 ls
 
 
 let rand_index a =
@@ -30,61 +36,71 @@ let rand_index a =
 let rand_gene () = Random.int 10
 
 
-let rand_chrm () = create_rand_array rand_gene chrm_length
+let rand_chrm () = create_rand_list rand_gene chrm_length
 
 
 let rand_pop size = create_rand_array rand_chrm size  
 
 
-let mutate chrm =
-  let n = Random.float 1.0 in
-  if n < mutation_rate
-  then
-    let new_chrm = Array.copy chrm in
-    Array.set new_chrm (rand_index new_chrm) (rand_gene ());
-    new_chrm
-  else chrm
+(* let mutate chrm =
+ *   let n = Random.float 1.0 in
+ *   if n < mutation_rate
+ *   then
+ *     let new_chrm = Array.copy chrm in
+ *     Array.set new_chrm (rand_index new_chrm) (rand_gene ());
+ *     new_chrm
+ *   else chrm *)
+
+let rec mutate chrm =
+  match chrm with
+    [] -> []
+  | h::t ->
+     if mutation_rate < Random.float 1.0
+     then h :: mutate t
+     else rand_gene () :: mutate t
 
 
-let fit chrm1 chrm2 =
-  if sum_int_array chrm1 > sum_int_array chrm2 then -1 else 1
+
+let fit_sort fit chrm1 chrm2 =
+  if fit chrm1 > fit chrm2 then -1 else 1
 
 
 let tourney_select pop =
   let (i, j) = rand_index pop, rand_index pop in
-  if i < j                      (* select from lower index *)
+  if i < j                     
   then Array.get pop i
   else Array.get pop j
 
 
 let tourney_insert pop chrm =
   let (i, j) = rand_index pop, rand_index pop in
-  if i < j                      (* insert into the higher index *)
+  if i < j                     
   then Array.set pop j chrm
   else Array.set pop i chrm
 
 
-let mingle pop =
+let reproduce pop =
   let (mom, dad) = tourney_select pop, tourney_select pop in
   let kid = mutate mom in
   tourney_insert pop kid;
-  Array.sort fit pop;
+  Array.sort (fit_sort sum_int_list) pop;
   pop
 
 
-let evolve pop = apply pop mingle pop_size
+let next_gen pop = apply pop reproduce pop_size
 
 
-let print_chrm c =
-  print_int (sum_int_array c); print_string ": <";
-  Array.iter (fun g -> print_int g; print_string " ") c;
-  print_string ">\n"
+let evolve pop = apply pop next_gen generations
 
 
-let print_pop p =
-  print_string "population:\n";
-  Array.iter (fun c -> print_chrm c) p
+let print_chrm print_gene fitness c =
+  print_string "<";
+  print_int (fitness c);
+  print_string "|~";
+  List.iter (fun g -> print_gene g; print_string "~") c;
+  print_string ">"
 
 
-let pop = apply (rand_pop pop_size) evolve generations
-
+let main =
+  let pop = evolve (rand_pop pop_size) in
+  print_chrm print_int sum_int_list (Array.get pop 0)
