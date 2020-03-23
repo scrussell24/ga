@@ -1,68 +1,59 @@
 (* Genetic Algorithm implementation in OCAML *)
 
-let pop_size = 100
-let chrm_length = 10
-let generations = 100
-let mutation_rate = 0.25
-
-
 (* general helper functions *)
-(* not built in? *)
+
+(* apply fn to a n times *)
 let rec apply a fn n =
   if n <= 0 then a else apply (fn a) fn (n - 1)
 
-
-(* This is kinda weird *)
-let create_rand_array rand_element length =
-  Array.map
-    (fun x -> rand_element ())
-    (Array.make length (rand_element ()))
-
-
+(* create a list with elements created by rand_element function *)
 let rec create_rand_list rand_element length =
   match length with
     0 -> []
   | _ -> rand_element () :: create_rand_list rand_element (length - 1)
 
+(* return a list of all elements before and including the ith *)
+let rec front_of_list ls i =
+  match ls with
+    [] -> []
+  | h::t ->
+     if i <= 0
+     then [h]
+     else h :: front_of_list ls (i - 1)
 
-(* Is there a sum function? *)
-let sum_int_list ls = List.fold_left (+) 0 ls
+(* return a list of all elements after the ith *)
+let rec back_of_list ls i =
+  match ls with
+    [] -> []
+  | h::t ->
+     if i <= 0
+     then t
+     else back_of_list t (i - 1)
 
-
+(* returns and random array index *)
 let rand_index a =
   Random.int (Array.length a)
 
 
-let rand_gene () = Random.int 10
+(* GA specific *)
+type 'a config = {
+    rand_gene: (unit -> 'a);
+    rand_genome: (unit -> 'a list);
+    mutation_rate: float;
+    pop_size: int;
+    fitness: ('a list -> int);
+    generations: int
+}
+
+let rand_pop config =
+  Array.of_list
+    (create_rand_list
+       (fun () -> create_rand_list config.rand_gene 10)
+       config.pop_size)  
 
 
-let rand_chrm () = create_rand_list rand_gene chrm_length
-
-
-let rand_pop size = create_rand_array rand_chrm size  
-
-
-(* let mutate chrm =
- *   let n = Random.float 1.0 in
- *   if n < mutation_rate
- *   then
- *     let new_chrm = Array.copy chrm in
- *     Array.set new_chrm (rand_index new_chrm) (rand_gene ());
- *     new_chrm
- *   else chrm *)
-
-let rec mutate chrm =
-  match chrm with
-    [] -> []
-  | h::t ->
-     if mutation_rate < Random.float 1.0
-     then h :: mutate t
-     else rand_gene () :: mutate t
-
-
-
-let fit_sort fit chrm1 chrm2 =
-  if fit chrm1 > fit chrm2 then -1 else 1
+let fit_sort fit g1 g2 =
+  if fit g1 > fit g2 then 1 else -1
 
 
 let tourney_select pop =
@@ -79,21 +70,37 @@ let tourney_insert pop chrm =
   else Array.set pop i chrm
 
 
-let reproduce pop =
+let rec mutate config genome =
+  match genome with
+    [] -> []
+  | h::t ->
+     if config.mutation_rate < Random.float 1.0
+     then h :: mutate config t
+     else config.rand_gene () :: mutate config t
+
+
+let crossover mom dad =
+  let i = Random.int (List.length mom) in
+  (front_of_list mom i) @ (back_of_list dad i)
+
+
+let reproduce config pop =
   let (mom, dad) = tourney_select pop, tourney_select pop in
-  let kid = mutate mom in
+  let kid = mutate config (crossover mom dad) in
   tourney_insert pop kid;
-  Array.sort (fit_sort sum_int_list) pop;
+  Array.sort (fit_sort config.fitness) pop;
   pop
 
 
-let next_gen pop = apply pop reproduce pop_size
+let evolve config =
+  let pop = (rand_pop config) in
+  apply
+    pop
+    (fun pop -> apply pop (reproduce config) config.pop_size)
+    config.generations
 
 
-let evolve pop = apply pop next_gen generations
-
-
-let print_chrm print_gene fitness c =
+let print_genome print_gene fitness c =
   print_string "<";
   print_int (fitness c);
   print_string "|~";
@@ -102,5 +109,15 @@ let print_chrm print_gene fitness c =
 
 
 let main =
-  let pop = evolve (rand_pop pop_size) in
-  print_chrm print_int sum_int_list (Array.get pop 0)
+  let rand_gene () = Random.int 10 in
+  let fitness gs = List.fold_left (+) 0 gs in
+  let config = {
+    rand_gene=rand_gene;
+    rand_genome=(fun () -> create_rand_list rand_gene 10);
+    mutation_rate=0.1;
+    pop_size=100;
+    fitness=fitness;
+    generations=100
+  } in
+  let pop = evolve config in
+  print_genome print_int fitness (Array.get pop 0)
