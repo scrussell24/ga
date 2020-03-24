@@ -56,21 +56,7 @@ let reproduce config pop =
   pop
 
 
-let evolve
-      rand_gene
-      rand_genome
-      mutation_rate
-      pop_size
-      fitness
-      generations =
-  let config = {
-      rand_gene=rand_gene;
-      rand_genome=rand_genome;
-      mutation_rate=mutation_rate;
-      pop_size=pop_size;
-      fitness=fitness;
-      generations=generations
-    } in
+let evolve config =
   let pop = (rand_pop config) in
   Utils.apply
     pop

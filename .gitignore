@@ -1,0 +1,8 @@
+*~
+*.cmi
+*.cmo
+ga
+main
+*#
+*\*
+*.out
